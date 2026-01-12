@@ -6,7 +6,6 @@
 import React, { useRef, useCallback, useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import {
-  SafeAreaView,
   StyleSheet,
   Platform,
   BackHandler,
@@ -15,10 +14,12 @@ import {
   ActivityIndicator,
   Text,
 } from 'react-native';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
 import WebViewContainer, { WebViewContainerRef } from './src/components/WebViewContainer';
 import { useDeepLink } from './src/hooks/useDeepLink';
 import { usePushNotification } from './src/hooks/usePushNotification';
+import { initKakaoSDK } from './src/services/kakaoShareService';
 
 // WebView URL
 const WEBVIEW_URL = process.env.EXPO_PUBLIC_WEBVIEW_URL || 'https://camter-client.vercel.app/';
@@ -49,6 +50,13 @@ export default function App() {
     },
   });
 
+  // 카카오 SDK 초기화
+  useEffect(() => {
+    initKakaoSDK().then((success) => {
+      console.log('[App] Kakao SDK initialized:', success);
+    });
+  }, []);
+
   /**
    * 딥링크 처리
    */
@@ -67,7 +75,14 @@ export default function App() {
     if (Platform.OS !== 'android') return;
 
     const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
-      // 홈 화면이면 앱 종료 확인
+      // WebView 히스토리가 있으면 무조건 뒤로가기 (결제 에러 복구 우선)
+      if (canGoBack) {
+        console.log('[App] Back button pressed - navigating back in WebView');
+        webViewRef.current?.goBack();
+        return true;
+      }
+
+      // 히스토리가 없을 때만 홈 화면 체크 후 앱 종료 확인
       const isHomePage =
         currentUrl === WEBVIEW_URL ||
         currentUrl === `${WEBVIEW_URL}/` ||
@@ -87,9 +102,7 @@ export default function App() {
         return true;
       }
 
-      // WebView 뒤로가기
-      webViewRef.current?.goBack();
-      return true;
+      return false;
     });
 
     return () => backHandler.remove();
@@ -98,11 +111,16 @@ export default function App() {
   /**
    * 네비게이션 상태 변경 처리
    */
-  const handleNavigationStateChange = useCallback((navState: { url: string; title?: string }) => {
+  const handleNavigationStateChange = useCallback((navState: { url: string; title?: string; canGoBack?: boolean }) => {
     setCurrentUrl(navState.url);
-    // canGoBack은 WebView 내부 히스토리 기반으로 결정
-    // 현재는 URL 기반으로 간단히 처리
-    setCanGoBack(navState.url !== WEBVIEW_URL && navState.url !== `${WEBVIEW_URL}/`);
+    // WebView의 실제 히스토리 기반으로 canGoBack 상태 업데이트
+    // navState.canGoBack이 있으면 그 값을 사용, 없으면 URL 기반 판단
+    if (navState.canGoBack !== undefined) {
+      setCanGoBack(navState.canGoBack);
+    } else {
+      // fallback: URL 기반 판단
+      setCanGoBack(navState.url !== WEBVIEW_URL && navState.url !== `${WEBVIEW_URL}/`);
+    }
   }, []);
 
   /**
@@ -133,37 +151,41 @@ export default function App() {
   // 초기화 중 스플래시 표시
   if (!isDeepLinkReady || !isPushInitialized) {
     return (
-      <SafeAreaView style={styles.container}>
-        <StatusBar style="dark" />
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#00AC6A" />
-          <Text style={styles.loadingText}>캠터 로딩중...</Text>
-        </View>
-      </SafeAreaView>
+      <SafeAreaProvider>
+        <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+          <StatusBar style="dark" />
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#00AC6A" />
+            <Text style={styles.loadingText}>캠터 로딩중...</Text>
+          </View>
+        </SafeAreaView>
+      </SafeAreaProvider>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar style="dark" />
+    <SafeAreaProvider>
+      <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+        <StatusBar style="dark" />
 
-      {/* WebView */}
-      <WebViewContainer
-        ref={webViewRef}
-        uri={WEBVIEW_URL}
-        deepLinkPath={deepLinkPath || undefined}
-        onNavigationStateChange={handleNavigationStateChange}
-        onLoadEnd={handleLoadEnd}
-        onError={handleError}
-      />
+        {/* WebView */}
+        <WebViewContainer
+          ref={webViewRef}
+          uri={WEBVIEW_URL}
+          deepLinkPath={deepLinkPath || undefined}
+          onNavigationStateChange={handleNavigationStateChange}
+          onLoadEnd={handleLoadEnd}
+          onError={handleError}
+        />
 
-      {/* 최초 로딩 오버레이 */}
-      {isFirstLoad && (
-        <View style={styles.loadingOverlay}>
-          <ActivityIndicator size="large" color="#00AC6A" />
-        </View>
-      )}
-    </SafeAreaView>
+        {/* 최초 로딩 오버레이 */}
+        {isFirstLoad && (
+          <View style={styles.loadingOverlay}>
+            <ActivityIndicator size="large" color="#00AC6A" />
+          </View>
+        )}
+      </SafeAreaView>
+    </SafeAreaProvider>
   );
 }
 
@@ -171,7 +193,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#fff',
-    paddingTop: Platform.OS === 'android' ? 25 : 0,
   },
   loadingContainer: {
     flex: 1,

@@ -9,10 +9,19 @@
     "web": "expo start --web",
     "prebuild": "expo prebuild",
     "build:android": "eas build --platform android",
-    "build:ios": "eas build --platform ios"
+    "build:ios": "eas build --platform ios",
+    "bundle:android": "mkdir -p android/app/src/main/assets && npx expo export:embed --platform android --entry-file index.ts --bundle-output android/app/src/main/assets/index.android.bundle --assets-dest android/app/src/main/res",
+    "build:android:release": "npm run bundle:android && cd android && ./gradlew assembleRelease",
+    "build:android:clean": "npm run bundle:android && cd android && ./gradlew clean && ./gradlew assembleRelease",
+    "build:android:debug": "cd android && ./gradlew assembleDebug"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "2.1.2",
+    "@react-native-kakao/core": "^2.4.4",
+    "@react-native-kakao/share": "^2.4.4",
+    "@react-native-kakao/social": "^2.4.4",
+    "@react-native-kakao/user": "^2.4.4",
+    "@tosspayments/widget-sdk-react-native": "^1.5.1",
     "expo": "~54.0.30",
     "expo-constants": "~18.0.12",
     "expo-device": "~8.0.10",
@@ -26,6 +35,7 @@
     "expo-status-bar": "~3.0.9",
     "react": "19.1.0",
     "react-native": "0.81.5",
+    "react-native-safe-area-context": "^5.6.2",
     "react-native-webview": "13.15.0"
   },
   "devDependencies": {

@@ -1,13 +1,12 @@
 /**
- * WebView Bridge - FlutterBridge 호환 인터페이스
- * camter 웹앱의 FlutterBridge를 사용하는 코드와 호환되도록
- * React Native에서 동일한 인터페이스를 제공
+ * WebView Bridge - React Native ↔ 웹 통신 인터페이스
+ * camter 웹앱과 React Native 앱 간의 네이티브 기능 연동
  */
 
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
 
-// 이미지 선택 결과 타입 (Flutter와 동일)
+// 이미지 선택 결과 타입
 export interface ImagePickerResult {
   base64: string;
   mimeType: string;
@@ -26,8 +25,8 @@ export interface PermissionStatus {
 // 브릿지 메시지 타입
 export interface BridgeMessage {
   type: string;
-  action?: string;  // Flutter 호환용
-  requestId?: string;  // Flutter 호환용
+  action?: string;
+  requestId?: string;
   data?: unknown;
   source?: 'camera' | 'gallery';  // pickImage용
   callbackId?: string;
@@ -139,7 +138,7 @@ export const pickImageFromGallery = async (): Promise<ImagePickerResult | null> 
 };
 
 /**
- * 이미지 선택 - source에 따라 분기 (Flutter 호환)
+ * 이미지 선택 - source에 따라 분기
  */
 export const pickImage = async (source: 'camera' | 'gallery'): Promise<ImagePickerResult | null> => {
   if (source === 'camera') {
@@ -183,13 +182,14 @@ export const checkPermission = async (permissionType: 'camera' | 'photos'): Prom
 
 /**
  * WebView에 주입할 JavaScript 코드 생성
- * FlutterBridge 호환 인터페이스 제공
+ * 웹에서 window.NativeBridge를 통해 RN 네이티브 기능 호출
  */
 export const generateInjectedJavaScript = (): string => {
   return `
     (function() {
-      // Flutter WebView 환경 플래그 설정
+      // RN WebView 환경 플래그 설정 (레거시 호환용 isFlutterWebView 유지)
       window.isFlutterWebView = true;
+      window.isRNWebView = true;
 
       // 요청 ID 생성
       function generateRequestId() {
@@ -199,15 +199,15 @@ export const generateInjectedJavaScript = (): string => {
       // 대기 중인 요청 저장소
       window._pendingRequests = window._pendingRequests || {};
 
-      // FlutterBridge 호환 인터페이스
-      window.FlutterBridge = {
-        // postMessage - Flutter 방식 호환
+      // NativeBridge 인터페이스 (레거시 호환용 FlutterBridge도 유지)
+      var bridge = {
+        // postMessage - RN WebView로 메시지 전송
         postMessage: function(messageString) {
           try {
             var message = JSON.parse(messageString);
             window.ReactNativeWebView.postMessage(JSON.stringify(message));
           } catch (e) {
-            console.error('[FlutterBridge] postMessage error:', e);
+            console.error('[NativeBridge] postMessage error:', e);
           }
         },
 
@@ -225,7 +225,7 @@ export const generateInjectedJavaScript = (): string => {
           });
         },
 
-        // 이미지 선택 (source 지정) - Flutter 호환
+        // 이미지 선택 (source 지정)
         pickImage: function(source) {
           return new Promise(function(resolve, reject) {
             var requestId = generateRequestId();
@@ -342,25 +342,21 @@ export const generateInjectedJavaScript = (): string => {
         }
       };
 
-      // Flutter 응답 핸들러 (Flutter 호환)
-      window.handleFlutterResponse = function(response) {
-        console.log('[FlutterBridge] Response received:', response.requestId);
+      // NativeBridge와 FlutterBridge 둘 다 등록 (레거시 호환)
+      window.NativeBridge = bridge;
+      window.FlutterBridge = bridge;
 
-        var pending = window._pendingRequests[response.requestId];
-        if (pending) {
-          delete window._pendingRequests[response.requestId];
+      // 네이티브 응답 핸들러
+      // 웹의 nativeBridge.ts가 handleNativeResponse를 등록하므로, 여기서는 등록하지 않음
+      // handleFlutterResponse만 alias로 연결 (웹에서 이미 등록된 handleNativeResponse 사용)
+      // 레거시 호환용 alias - handleNativeResponse가 있으면 연결
+      if (window.handleNativeResponse) {
+        window.handleFlutterResponse = window.handleNativeResponse;
+      }
 
-          if (response.success) {
-            pending.resolve(response.data);
-          } else {
-            pending.reject(new Error(response.error || 'Unknown error'));
-          }
-        }
-      };
-
-      // React Native 응답 핸들러 (기존 호환)
-      window.handleNativeResponse = function(type, result) {
-        console.log('[FlutterBridge] Native response:', type);
+      // 타입 기반 응답 핸들러 (기존 호환)
+      window.handleNativeResponseByType = function(type, result) {
+        console.log('[NativeBridge] Response by type:', type);
 
         // 타입별로 대기 중인 요청 찾기
         for (var requestId in window._pendingRequests) {
@@ -371,15 +367,19 @@ export const generateInjectedJavaScript = (): string => {
         }
       };
 
-      // 브릿지 준비 완료 이벤트
+      // 브릿지 준비 완료 이벤트 (레거시 호환용 FlutterBridgeReady도 유지)
+      window.dispatchEvent(new Event('NativeBridgeReady'));
       window.dispatchEvent(new Event('FlutterBridgeReady'));
 
-      // onFlutterBridgeReady 콜백 호출
+      // 콜백 호출 (레거시 호환)
+      if (typeof window.onNativeBridgeReady === 'function') {
+        window.onNativeBridgeReady();
+      }
       if (typeof window.onFlutterBridgeReady === 'function') {
         window.onFlutterBridgeReady();
       }
 
-      console.log('[WebViewBridge] FlutterBridge initialized (RN compatible)');
+      console.log('[WebViewBridge] NativeBridge initialized (RN)');
     })();
     true;
   `;
@@ -439,7 +439,7 @@ export const createMessageHandler = (handlers: {
       case 'checkPermission':
         if (handlers.onCheckPermission && data) {
           const permType = (data as { permissionType?: string; type?: string }).permissionType ||
-                          (data as { type?: string }).type;
+            (data as { type?: string }).type;
           if (permType) {
             const result = await handlers.onCheckPermission(permType as 'camera' | 'photos');
             return { type: 'permissionResult', result };

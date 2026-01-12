@@ -7,7 +7,10 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
-    "scheme": "camter",
+    "scheme": [
+      "camter",
+      "kakao1a11067057bb6fcf187e925d406f9386"
+    ],
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
@@ -21,12 +24,16 @@
         "NSPhotoLibraryUsageDescription": "사진 저장을 위해 갤러리 접근이 필요합니다.",
         "NSPhotoLibraryAddUsageDescription": "파일 다운로드를 위해 갤러리 접근이 필요합니다.",
         "NSLocationWhenInUseUsageDescription": "위치 기반 서비스를 위해 위치 접근이 필요합니다.",
-        "UIBackgroundModes": ["remote-notification"]
+        "UIBackgroundModes": [
+          "remote-notification"
+        ]
       },
       "associatedDomains": [
         "applinks:camter.co.kr",
-        "applinks:www.camter.co.kr"
-      ]
+        "applinks:www.camter.co.kr",
+        "applinks:camter-client.vercel.app"
+      ],
+      "googleServicesFile": "./GoogleService-Info.plist"
     },
     "android": {
       "adaptiveIcon": {
@@ -34,6 +41,7 @@
         "backgroundColor": "#ffffff"
       },
       "package": "com.camter.start_app",
+      "googleServicesFile": "./google-services.json",
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.READ_EXTERNAL_STORAGE",
@@ -49,10 +57,26 @@
           "autoVerify": true,
           "data": [
             {
+              "scheme": "com.googleusercontent.apps.722950935647-nu0p9a36dilh1p2u8scf6s3ddrjhvia1"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        },
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
               "scheme": "camter"
             }
           ],
-          "category": ["BROWSABLE", "DEFAULT"]
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
         },
         {
           "action": "VIEW",
@@ -62,7 +86,10 @@
               "scheme": "camterapp"
             }
           ],
-          "category": ["BROWSABLE", "DEFAULT"]
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
         },
         {
           "action": "VIEW",
@@ -72,7 +99,10 @@
               "scheme": "camterguest"
             }
           ],
-          "category": ["BROWSABLE", "DEFAULT"]
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
         },
         {
           "action": "VIEW",
@@ -84,7 +114,25 @@
               "pathPrefix": "/"
             }
           ],
-          "category": ["BROWSABLE", "DEFAULT"]
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        },
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "kakao1a11067057bb6fcf187e925d406f9386",
+              "host": "kakaolink",
+              "pathPrefix": "/"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
         }
       ]
     },

@@ -130,6 +130,19 @@ const convertToWebViewPath = (url: string, params: DeepLinkParams): string | nul
       }
     }
 
+    // URL Fragment 처리 (OAuth 토큰이 fragment에 있는 경우)
+    // camter://auth/success#accessToken=xxx&expiresIn=yyy
+    if (url.includes('#')) {
+      const [beforeHash, fragment] = url.split('#');
+      const pathPart = beforeHash.replace(/^[a-z]+:\/\//, '').split('/').slice(1).join('/');
+
+      // auth/success 경로인 경우 fragment를 그대로 포함
+      if (pathPart === 'auth/success' || pathPart.startsWith('auth/success')) {
+        console.log('[useDeepLink] Auth success deep link detected, fragment:', fragment);
+        return `/auth/success#${fragment}`;
+      }
+    }
+
     // 쿼리 파라미터가 있는 경우 경로와 분리
     const [basePath] = path.split('?');
 
