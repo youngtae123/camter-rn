@@ -3,6 +3,7 @@
  * camter 웹앱과 React Native 앱 간의 네이티브 기능 연동
  */
 
+import ImageCropPicker from 'react-native-image-crop-picker';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
 
@@ -62,76 +63,84 @@ export const executeCallback = (callbackId: string, result: unknown): void => {
 };
 
 /**
- * 이미지 선택 - 카메라
+ * 이미지 선택 - 카메라 (react-native-image-crop-picker)
+ * 원형 크롭 + 핀치 줌 지원
  */
 export const pickImageFromCamera = async (): Promise<ImagePickerResult | null> => {
   try {
-    const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    if (status !== 'granted') {
-      console.warn('Camera permission denied');
-      return null;
-    }
-
-    const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ['images'],
-      allowsEditing: true,
-      quality: 0.8,
-      base64: true,
+    const result = await ImageCropPicker.openCamera({
+      width: 400,
+      height: 400,
+      cropping: true,
+      cropperCircleOverlay: true,  // 원형 크롭 오버레이
+      includeBase64: true,
+      mediaType: 'photo',
+      compressImageQuality: 0.8,
+      cropperToolbarTitle: '프로필 사진 편집',
+      cropperChooseText: '완료',
+      cropperCancelText: '취소',
     });
 
-    if (result.canceled || !result.assets[0]) {
+    if (!result || !result.data) {
       return null;
     }
 
-    const asset = result.assets[0];
-    const fileName = asset.uri.split('/').pop() || `image_${Date.now()}.jpg`;
-    const mimeType = asset.mimeType || 'image/jpeg';
+    const fileName = result.path.split('/').pop() || `image_${Date.now()}.jpg`;
 
     return {
-      base64: asset.base64 || '',
-      mimeType,
+      base64: result.data,
+      mimeType: result.mime || 'image/jpeg',
       fileName,
-      path: asset.uri,
+      path: result.path,
     };
-  } catch (error) {
+  } catch (error: any) {
+    // 사용자 취소는 에러로 처리하지 않음
+    if (error?.code === 'E_PICKER_CANCELLED') {
+      console.log('Camera picker cancelled');
+      return null;
+    }
     console.error('Camera error:', error);
     return null;
   }
 };
 
 /**
- * 이미지 선택 - 갤러리
+ * 이미지 선택 - 갤러리 (react-native-image-crop-picker)
+ * 원형 크롭 + 핀치 줌 지원
  */
 export const pickImageFromGallery = async (): Promise<ImagePickerResult | null> => {
   try {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      console.warn('Gallery permission denied');
-      return null;
-    }
-
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      allowsEditing: true,
-      quality: 0.8,
-      base64: true,
+    const result = await ImageCropPicker.openPicker({
+      width: 400,
+      height: 400,
+      cropping: true,
+      cropperCircleOverlay: true,  // 원형 크롭 오버레이
+      includeBase64: true,
+      mediaType: 'photo',
+      compressImageQuality: 0.8,
+      cropperToolbarTitle: '프로필 사진 편집',
+      cropperChooseText: '완료',
+      cropperCancelText: '취소',
     });
 
-    if (result.canceled || !result.assets[0]) {
+    if (!result || !result.data) {
       return null;
     }
 
-    const asset = result.assets[0];
-    const fileName = asset.uri.split('/').pop() || `image_${Date.now()}.jpg`;
-    const mimeType = asset.mimeType || 'image/jpeg';
+    const fileName = result.path.split('/').pop() || `image_${Date.now()}.jpg`;
 
     return {
-      base64: asset.base64 || '',
-      mimeType,
+      base64: result.data,
+      mimeType: result.mime || 'image/jpeg',
       fileName,
-      path: asset.uri,
+      path: result.path,
     };
-  } catch (error) {
+  } catch (error: any) {
+    // 사용자 취소는 에러로 처리하지 않음
+    if (error?.code === 'E_PICKER_CANCELLED') {
+      console.log('Gallery picker cancelled');
+      return null;
+    }
     console.error('Gallery error:', error);
     return null;
   }

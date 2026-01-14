@@ -6,10 +6,11 @@
  * RN은 네이티브 카메라/갤러리 기능만 실행합니다.
  */
 
-import React, { useRef, useCallback, useEffect, useState, forwardRef, useImperativeHandle } from 'react';
+import React, { useRef, useState, useEffect, useCallback, forwardRef, useImperativeHandle } from 'react';
 import { StyleSheet, Linking, Share, AppState, AppStateStatus, Platform } from 'react-native';
 import { WebView, WebViewMessageEvent } from 'react-native-webview';
 import { ConvertUrl } from '@tosspayments/widget-sdk-react-native/src/utils/convertUrl';
+import * as WebBrowser from 'expo-web-browser';
 
 import {
   generateInjectedJavaScript,
@@ -110,8 +111,9 @@ const WebViewContainer = forwardRef<WebViewContainerRef, WebViewContainerProps>(
       goForward: () => webViewRef.current?.goForward(),
       reload: () => webViewRef.current?.reload(),
       navigateTo: (path: string) => {
-        const script = `window.location.href = '${path}';`;
-        webViewRef.current?.injectJavaScript(script);
+        const baseUrl = uri.replace(/\/$/, '');
+        const targetUrl = `${baseUrl}${path}`;
+        webViewRef.current?.injectJavaScript(`window.location.href = '${targetUrl}';`);
       },
       injectJavaScript: (script: string) => {
         webViewRef.current?.injectJavaScript(script);
@@ -127,6 +129,32 @@ const WebViewContainer = forwardRef<WebViewContainerRef, WebViewContainerProps>(
       }
     }, [deepLinkPath, uri]);
 
+    /**
+     * 인앱 브라우저로 외부 링크 열기 (expo-web-browser 사용)
+     */
+    const openInAppBrowser = useCallback(async (url: string) => {
+      try {
+        console.log('[WebViewContainer] Opening in-app browser with expo-web-browser:', url);
+
+        // WebBrowser.openBrowserAsync는 Promise<WebBrowserResult>를 반환
+        // iOS: SFSafariViewController, Android: Chrome Custom Tabs
+        await WebBrowser.openBrowserAsync(url, {
+          // iOS 옵션
+          controlsColor: '#00AC6A', // 완료 버튼 등 색상
+          presentationStyle: WebBrowser.WebBrowserPresentationStyle.PAGE_SHEET,
+
+          // Android 옵션
+          toolbarColor: '#FFFFFF',
+          secondaryToolbarColor: 'black',
+          showTitle: true,
+          enableDefaultShareMenuItem: true,
+        });
+      } catch (error) {
+        console.error('[WebViewContainer] WebBrowser error:', error);
+        // Fallback to external browser (Safari/Chrome App)
+        Linking.openURL(url);
+      }
+    }, []);
 
     /**
      * WebView 메시지를 JavaScript로 전송 (타입 기반 응답)
@@ -365,11 +393,17 @@ const WebViewContainer = forwardRef<WebViewContainerRef, WebViewContainerProps>(
             case 'openExternalLink': {
               if (data) {
                 const { url } = data as { url: string };
-                const supported = await Linking.canOpenURL(url);
-                if (supported) {
-                  await Linking.openURL(url);
+                // 인앱 브라우저로 열기 (앱 딥링크는 제외)
+                if (url.startsWith('http://') || url.startsWith('https://')) {
+                  await openInAppBrowser(url);
                 } else {
-                  console.warn('Cannot open URL:', url);
+                  // 앱 딥링크는 외부 앱으로 열기
+                  const supported = await Linking.canOpenURL(url);
+                  if (supported) {
+                    await Linking.openURL(url);
+                  } else {
+                    console.warn('[WebViewContainer] Cannot open URL:', url);
+                  }
                 }
               }
               break;
@@ -457,7 +491,7 @@ const WebViewContainer = forwardRef<WebViewContainerRef, WebViewContainerProps>(
     /**
      * 네비게이션 상태 변경 핸들러
      */
-    const handleNavigationStateChange = useCallback(
+  const handleNavigationStateChange = useCallback(
       (navState: { url: string; title?: string }) => {
         // 디버깅: 모든 navigation 변경 로깅
         console.log('[WebViewContainer][NAV] URL changed:', navState.url);
@@ -576,8 +610,22 @@ const WebViewContainer = forwardRef<WebViewContainerRef, WebViewContainerProps>(
         return false;
       }
 
+      // [추가] 외부 링크(Notion, Kakao Channel, Naver Map) 인앱 브라우저 강제 전환
+      // 웹에서 window.open fallback이 발생하거나 href로 이동하려 할 때 WebView 내부 이동을 방지
+      const isExternalLink =
+        url.includes('notion.site') ||
+        url.includes('notion.so') ||
+        url.includes('pf.kakao.com') ||
+        url.includes('map.naver.com');
+
+      if (isExternalLink) {
+        console.log('[WebViewContainer] External link detected, forcing InAppBrowser:', url);
+        openInAppBrowser(url);
+        return false;
+      }
+
       return true;
-    }, [webviewSource]);
+    }, [webviewSource, openInAppBrowser]);
 
     /**
      * 에러 핸들러
